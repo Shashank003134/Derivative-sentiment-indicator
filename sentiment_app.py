@@ -251,6 +251,8 @@ def show_analyser():
         with c4:
             strategy_col = st.selectbox('Strategy / Trade Type Column', all_cols)
         st.divider()
+        chart_type = st.selectbox('Select Chart Type', ['Bar Chart', 'Line Chart', 'Area Chart', 'Pie Chart'], key='chart_selector')
+        st.divider()
         if st.button('Analyse My Trades'):
             if '-- Select --' in [date_col, pnl_col, index_col, strategy_col]:
                 st.error('Please map all 4 columns before analysing!')
@@ -288,8 +290,15 @@ def show_analyser():
                 strategy_pnl['Win Rate'] = (strategy_pnl['Profit Trades'] / strategy_pnl['Total Trades'] * 100).round(2)
                 strategy_pnl['Total PnL'] = strategy_pnl['Total PnL'].round(2)
                 strategy_pnl['Color'] = strategy_pnl['Total PnL'].apply(lambda x: 'green' if x > 0 else 'red')
-                fig_s = go.Figure(go.Bar(x=strategy_pnl['Strategy'], y=strategy_pnl['Total PnL'], marker_color=strategy_pnl['Color']))
-                fig_s.update_layout(title='Strategy Wise P&L', xaxis_title='Strategy', yaxis_title='Net P&L (Rs)')
+                if chart_type == 'Bar Chart':
+                    fig_s = go.Figure(go.Bar(x=strategy_pnl['Strategy'], y=strategy_pnl['Total PnL'], marker_color=strategy_pnl['Color']))
+                elif chart_type == 'Line Chart':
+                    fig_s = go.Figure(go.Scatter(x=strategy_pnl['Strategy'], y=strategy_pnl['Total PnL'], mode='lines+markers', line=dict(color='blue', width=2)))
+                elif chart_type == 'Area Chart':
+                    fig_s = go.Figure(go.Scatter(x=strategy_pnl['Strategy'], y=strategy_pnl['Total PnL'], fill='tozeroy', mode='lines', line=dict(color='blue')))
+                else:
+                    fig_s = go.Figure(go.Pie(labels=strategy_pnl['Strategy'], values=strategy_pnl['Total PnL'].abs()))
+                fig_s.update_layout(title='Strategy Wise P&L')
                 st.plotly_chart(fig_s, use_container_width=True, key='strategy_pnl')
                 st.dataframe(strategy_pnl[['Strategy', 'Total PnL', 'Total Trades', 'Win Rate']].sort_values('Total PnL', ascending=False), use_container_width=True)
                 st.divider()
@@ -297,15 +306,29 @@ def show_analyser():
                 index_pnl = df.groupby('Index')['Net PnL'].sum().reset_index()
                 index_pnl.columns = ['Index', 'Total PnL']
                 index_pnl['Color'] = index_pnl['Total PnL'].apply(lambda x: 'green' if x > 0 else 'red')
-                fig_i = go.Figure(go.Bar(x=index_pnl['Index'], y=index_pnl['Total PnL'], marker_color=index_pnl['Color']))
-                fig_i.update_layout(title='Index Wise P&L', xaxis_title='Index', yaxis_title='Net P&L (Rs)')
+                if chart_type == 'Bar Chart':
+                    fig_i = go.Figure(go.Bar(x=index_pnl['Index'], y=index_pnl['Total PnL'], marker_color=index_pnl['Color']))
+                elif chart_type == 'Line Chart':
+                    fig_i = go.Figure(go.Scatter(x=index_pnl['Index'], y=index_pnl['Total PnL'], mode='lines+markers', line=dict(color='blue', width=2)))
+                elif chart_type == 'Area Chart':
+                    fig_i = go.Figure(go.Scatter(x=index_pnl['Index'], y=index_pnl['Total PnL'], fill='tozeroy', mode='lines', line=dict(color='blue')))
+                else:
+                    fig_i = go.Figure(go.Pie(labels=index_pnl['Index'], values=index_pnl['Total PnL'].abs()))
+                fig_i.update_layout(title='Index Wise P&L')
                 st.plotly_chart(fig_i, use_container_width=True, key='index_pnl_analyser')
                 st.divider()
                 st.subheader('Monthly Performance')
                 monthly_pnl = df.groupby('Month')['Net PnL'].sum().reset_index()
                 monthly_pnl['Color'] = monthly_pnl['Net PnL'].apply(lambda x: 'green' if x > 0 else 'red')
-                fig_m = go.Figure(go.Bar(x=monthly_pnl['Month'], y=monthly_pnl['Net PnL'], marker_color=monthly_pnl['Color']))
-                fig_m.update_layout(title='Monthly P&L', xaxis_title='Month', yaxis_title='Net P&L (Rs)')
+                if chart_type == 'Bar Chart':
+                    fig_m = go.Figure(go.Bar(x=monthly_pnl['Month'], y=monthly_pnl['Net PnL'], marker_color=monthly_pnl['Color']))
+                elif chart_type == 'Line Chart':
+                    fig_m = go.Figure(go.Scatter(x=monthly_pnl['Month'], y=monthly_pnl['Net PnL'], mode='lines+markers', line=dict(color='blue', width=2)))
+                elif chart_type == 'Area Chart':
+                    fig_m = go.Figure(go.Scatter(x=monthly_pnl['Month'], y=monthly_pnl['Net PnL'], fill='tozeroy', mode='lines', line=dict(color='blue')))
+                else:
+                    fig_m = go.Figure(go.Pie(labels=monthly_pnl['Month'], values=monthly_pnl['Net PnL'].abs()))
+                fig_m.update_layout(title='Monthly P&L')
                 st.plotly_chart(fig_m, use_container_width=True, key='monthly_pnl_analyser')
                 st.divider()
                 st.subheader('Cumulative P&L Curve')
