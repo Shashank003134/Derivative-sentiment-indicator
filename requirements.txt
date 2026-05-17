@@ -2,3 +2,4 @@ streamlit
 jugaad-data
 pandas
 plotly
+openpyxl
