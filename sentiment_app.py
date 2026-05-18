@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from jugaad_data.nse import NSELive
 import pandas as pd
@@ -8,16 +9,20 @@ from datetime import datetime
 st.set_page_config(page_title='Derivative Sentiment Indicator', layout='wide')
 st.markdown('<h1 style="text-align:center; color:#1f77b4;">Derivative Sentiment Indicator</h1>', unsafe_allow_html=True)
 st.markdown('<h4 style="text-align:center; color:gray;">Live F&O Data Analysis - PCR | Max Pain | OI</h4>', unsafe_allow_html=True)
+st.markdown('<meta http-equiv="refresh" content="60">', unsafe_allow_html=True)
 
-col_refresh, col_time = st.columns([1, 3])
+col_refresh, col_time, col_timer = st.columns([1, 2, 2])
 with col_refresh:
     if st.button('Refresh Data'):
         st.cache_data.clear()
+        st.rerun()
 with col_time:
     st.markdown(f'<p style="color:gray;">Last Updated: {datetime.now().strftime("%d %b %Y %I:%M %p")}</p>', unsafe_allow_html=True)
+with col_timer:
+    st.markdown('<p style="color:gray;">Auto refreshes every 1 minute</p>', unsafe_allow_html=True)
 st.divider()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def fetch_data(index_name):
     n = NSELive()
     q2 = n.index_option_chain(index_name)
@@ -62,8 +67,10 @@ def show_dashboard(index_name):
     pcr = total_pe_oi / total_ce_oi
     max_pain_strike = merged_df.loc[merged_df['total_oi'].idxmax(), 'strike']
     atm_df = merged_df[(merged_df['strike'] >= nifty_spot - 1000) & (merged_df['strike'] <= nifty_spot + 1000)].copy()
-    max_ce_oi_strike = atm_df.loc[atm_df['ce_oi'].idxmax(), 'strike']
-    max_pe_oi_strike = atm_df.loc[atm_df['pe_oi'].idxmax(), 'strike']
+    above_spot = atm_df[atm_df['strike'] > nifty_spot]
+    below_spot = atm_df[atm_df['strike'] < nifty_spot]
+    max_ce_oi_strike = above_spot.loc[above_spot['ce_oi'].idxmax(), 'strike'] if len(above_spot) > 0 else atm_df.loc[atm_df['ce_oi'].idxmax(), 'strike']
+    max_pe_oi_strike = below_spot.loc[below_spot['pe_oi'].idxmax(), 'strike'] if len(below_spot) > 0 else atm_df.loc[atm_df['pe_oi'].idxmax(), 'strike']
     if pcr > 1.2:
         pcr_score = 2
         pcr_signal = 'BULLISH'
