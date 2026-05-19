@@ -1,17 +1,19 @@
 import time
 import streamlit as st
+import yfinance as yf
+import streamlit.components.v1 as components
 from jugaad_data.nse import NSELive
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 
-st.set_page_config(page_title='Derivative Sentiment Indicator', layout='wide')
-st.markdown('<h1 style="text-align:center; color:#1f77b4;">Derivative Sentiment Indicator</h1>', unsafe_allow_html=True)
-st.markdown('<h4 style="text-align:center; color:gray;">Live F&O Data Analysis - PCR | Max Pain | OI</h4>', unsafe_allow_html=True)
-st.markdown('<meta http-equiv="refresh" content="60">', unsafe_allow_html=True)
+st.set_page_config(page_title='OptionsPulse', page_icon='📊', layout='wide')
+st.markdown('<h1 style="text-align:center; color:#1f77b4;">OptionsPulse</h1>', unsafe_allow_html=True)
+st.markdown('<h4 style="text-align:center; color:#444444;"><i>Decode the Market. Dominate the Trade.</i></h4>', unsafe_allow_html=True)
+st.markdown('<h5 style="text-align:center; color:gray;">Live F&O Data Analysis - PCR | Max Pain | OI | Global Markets | Trade Analyser</h5>', unsafe_allow_html=True)
 
-col_refresh, col_time, col_timer = st.columns([1, 2, 2])
+col_refresh, col_time, col_timer, col_dark = st.columns([1, 2, 2, 1])
 with col_refresh:
     if st.button('Refresh Data'):
         st.cache_data.clear()
@@ -20,26 +22,54 @@ with col_time:
     st.markdown(f'<p style="color:gray;">Last Updated: {datetime.now().strftime("%d %b %Y %I:%M %p")}</p>', unsafe_allow_html=True)
 with col_timer:
     st.markdown('<p style="color:gray;">Auto refreshes every 1 minute</p>', unsafe_allow_html=True)
+with col_dark:
+    dark_mode = st.toggle('Dark Mode')
+if dark_mode:
+    st.markdown('''
+    <style>
+    .stApp { background-color: #1e1e1e; color: white; }
+    .stMetric { background-color: #2d2d2d; color: white; border-radius: 8px; padding: 10px; }
+    .stMetric label { color: #aaaaaa !important; }
+    .stMetric div { color: white !important; }
+    .stDataFrame { background-color: #2d2d2d; color: white; }
+    .stSelectbox label { color: white !important; }
+    .stSelectbox div { background-color: #2d2d2d; color: white; }
+    .stTextInput label { color: white !important; }
+    .stTextInput div { background-color: #2d2d2d; color: white; }
+    .stButton button { background-color: #1f77b4; color: white; }
+    .stTabs div { color: white; }
+    .stMarkdown { color: white; }
+    div[data-testid='stMetricValue'] { color: white !important; }
+    div[data-testid='stMetricLabel'] { color: #aaaaaa !important; }
+    .stFileUploader { background-color: #2d2d2d; color: white; }
+    .stDivider { border-color: #444444; }
+    </style>
+    ''', unsafe_allow_html=True)
 st.divider()
 
 @st.cache_data(ttl=60)
 def fetch_data(index_name):
-    n = NSELive()
-    q2 = n.index_option_chain(index_name)
-    nifty_spot = q2['records']['underlyingValue']
-    data = q2['records']['data']
-    ce_data = []
-    pe_data = []
-    for item in data:
-        if 'CE' in item:
-            ce_data.append({'strike': item['strikePrice'], 'expiry': item['CE']['expiryDate'], 'ce_oi': item['CE']['openInterest'], 'ce_volume': item['CE']['totalTradedVolume'], 'ce_iv': item['CE']['impliedVolatility']})
-        if 'PE' in item:
-            pe_data.append({'strike': item['strikePrice'], 'expiry': item['PE']['expiryDate'], 'pe_oi': item['PE']['openInterest'], 'pe_volume': item['PE']['totalTradedVolume'], 'pe_iv': item['PE']['impliedVolatility']})
-    ce_df = pd.DataFrame(ce_data)
-    pe_df = pd.DataFrame(pe_data)
-    merged_df = pd.merge(ce_df, pe_df, on=['strike', 'expiry'])
-    merged_df['total_oi'] = merged_df['ce_oi'] + merged_df['pe_oi']
-    return nifty_spot, ce_df, pe_df, merged_df
+    try:
+        n = NSELive()
+        q2 = n.index_option_chain(index_name)
+        if 'records' not in q2:
+            return None, None, None, None
+        nifty_spot = q2['records']['underlyingValue']
+        data = q2['records']['data']
+        ce_data = []
+        pe_data = []
+        for item in data:
+            if 'CE' in item:
+                ce_data.append({'strike': item['strikePrice'], 'expiry': item['CE']['expiryDate'], 'ce_oi': item['CE']['openInterest'], 'ce_volume': item['CE']['totalTradedVolume'], 'ce_iv': item['CE']['impliedVolatility']})
+            if 'PE' in item:
+                pe_data.append({'strike': item['strikePrice'], 'expiry': item['PE']['expiryDate'], 'pe_oi': item['PE']['openInterest'], 'pe_volume': item['PE']['totalTradedVolume'], 'pe_iv': item['PE']['impliedVolatility']})
+        ce_df = pd.DataFrame(ce_data)
+        pe_df = pd.DataFrame(pe_data)
+        merged_df = pd.merge(ce_df, pe_df, on=['strike', 'expiry'])
+        merged_df['total_oi'] = merged_df['ce_oi'] + merged_df['pe_oi']
+        return nifty_spot, ce_df, pe_df, merged_df
+    except Exception as e:
+        return None, None, None, None
 
 def make_gauge(title, value, min_val, max_val, color):
     fig = go.Figure(go.Indicator(
@@ -62,6 +92,9 @@ def make_gauge(title, value, min_val, max_val, color):
 def show_dashboard(index_name):
     with st.spinner('Fetching live NSE data...'):
         nifty_spot, ce_df, pe_df, merged_df = fetch_data(index_name)
+    if nifty_spot is None:
+        st.warning('NSE data not available right now. Market may be closed or NSE is busy. Please try again in a few minutes.')
+        return
     total_ce_oi = ce_df['ce_oi'].sum()
     total_pe_oi = pe_df['pe_oi'].sum()
     pcr = total_pe_oi / total_ce_oi
@@ -260,6 +293,14 @@ def show_analyser():
         st.divider()
         chart_type = st.selectbox('Select Chart Type', ['Bar Chart', 'Line Chart', 'Area Chart', 'Pie Chart'], key='chart_selector')
         st.divider()
+        st.divider()
+        st.subheader('Step 3 - Filter by Date Range (Optional)')
+        date_col1, date_col2 = st.columns(2)
+        with date_col1:
+            start_date = st.date_input('Start Date', value=pd.to_datetime('2025-01-01'))
+        with date_col2:
+            end_date = st.date_input('End Date', value=pd.to_datetime('today'))
+        st.divider()
         if st.button('Analyse My Trades'):
             if '-- Select --' in [date_col, pnl_col, index_col, strategy_col]:
                 st.error('Please map all 4 columns before analysing!')
@@ -268,6 +309,7 @@ def show_analyser():
                 df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
                 df['Net PnL'] = pd.to_numeric(df['Net PnL'], errors='coerce')
                 df = df.dropna(subset=['Date', 'Net PnL'])
+                df = df[(df['Date'] >= pd.to_datetime(start_date)) & (df['Date'] <= pd.to_datetime(end_date))]
                 df['Month'] = df['Date'].dt.strftime('%b %Y')
                 total_pnl = round(df['Net PnL'].sum(), 2)
                 total_trades = len(df)
@@ -290,6 +332,26 @@ def show_analyser():
                     st.metric('Avg Profit', 'Rs ' + str(avg_profit))
                 with r6:
                     st.metric('Avg Loss', 'Rs ' + str(avg_loss))
+                st.divider()
+                st.markdown('<h3 style="text-align:center;">Risk Metrics</h3>', unsafe_allow_html=True)
+                import numpy as np
+                daily_pnl = df.groupby('Date')['Net PnL'].sum()
+                sharpe_ratio = round((daily_pnl.mean() / daily_pnl.std()) * (252 ** 0.5), 2)
+                max_drawdown = round(((daily_pnl.cumsum() - daily_pnl.cumsum().cummax()) / daily_pnl.cumsum().cummax().abs()).min() * 100, 2)
+                profit_factor = round(df[df['Net PnL'] > 0]['Net PnL'].sum() / abs(df[df['Net PnL'] < 0]['Net PnL'].sum()), 2)
+                max_profit = round(df['Net PnL'].max(), 2)
+                max_loss = round(df['Net PnL'].min(), 2)
+                rk1, rk2, rk3, rk4, rk5 = st.columns(5)
+                with rk1:
+                    st.metric('Sharpe Ratio', sharpe_ratio)
+                with rk2:
+                    st.metric('Max Drawdown', str(max_drawdown) + '%')
+                with rk3:
+                    st.metric('Profit Factor', profit_factor)
+                with rk4:
+                    st.metric('Max Single Profit', 'Rs ' + str(max_profit))
+                with rk5:
+                    st.metric('Max Single Loss', 'Rs ' + str(max_loss))
                 st.divider()
                 st.subheader('Strategy Wise Performance')
                 strategy_pnl = df.groupby('Strategy')['Net PnL'].agg(['sum', 'count', lambda x: (x > 0).sum()]).reset_index()
@@ -345,7 +407,121 @@ def show_analyser():
                 fig_c.update_layout(title='Cumulative P&L Over Time', xaxis_title='Date', yaxis_title='Cumulative P&L (Rs)')
                 st.plotly_chart(fig_c, use_container_width=True, key='cumulative_pnl')
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(['Nifty', 'BankNifty', 'FinNifty', 'MidcapNifty', 'Trade Analyser'])
+@st.cache_data(ttl=300)
+def get_price(ticker):
+    try:
+        return round(yf.Ticker(ticker).fast_info['last_price'], 2)
+    except:
+        return 'N/A'
+
+def show_global_markets():
+    st.markdown('<h2 style="text-align:center; color:#1f77b4;">Global Market Watch</h2>', unsafe_allow_html=True)
+    st.markdown('<h5 style="text-align:center; color:gray;">Live prices — Indices | Commodities | Currencies | Updates every 5 minutes</h5>', unsafe_allow_html=True)
+    st.divider()
+    st.subheader('Global Indices')
+    g1, g2, g3, g4, g5, g6 = st.columns(6)
+    with g1:
+        st.metric('S&P 500', get_price('^GSPC'))
+    with g2:
+        st.metric('Dow Jones', get_price('^DJI'))
+    with g3:
+        st.metric('Nasdaq', get_price('^IXIC'))
+    with g4:
+        st.metric('FTSE 100', get_price('^FTSE'))
+    with g5:
+        st.metric('Nikkei', get_price('^N225'))
+    with g6:
+        st.metric('Hang Seng', get_price('^HSI'))
+    st.divider()
+    st.subheader('Commodities')
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric('Gold (USD/oz)', get_price('GC=F'))
+    with c2:
+        st.metric('Silver (USD/oz)', get_price('SI=F'))
+    with c3:
+        st.metric('Crude Oil (USD/bbl)', get_price('CL=F'))
+    with c4:
+        st.metric('Natural Gas', get_price('NG=F'))
+    st.divider()
+    st.subheader('Currencies')
+    cur1, cur2, cur3, cur4, cur5, cur6 = st.columns(6)
+    with cur1:
+        st.metric('USD/INR', get_price('USDINR=X'))
+    with cur2:
+        st.metric('EUR/INR', get_price('EURINR=X'))
+    with cur3:
+        st.metric('GBP/INR', get_price('GBPINR=X'))
+    with cur4:
+        st.metric('EUR/USD', get_price('EURUSD=X'))
+    with cur5:
+        st.metric('GBP/USD', get_price('GBPUSD=X'))
+    with cur6:
+        st.metric('USD/JPY', get_price('USDJPY=X'))
+    st.divider()
+    st.subheader('Indian Markets')
+    i1, i2, i3 = st.columns(3)
+    with i1:
+        st.metric('Nifty 50', get_price('^NSEI'))
+    with i2:
+        st.metric('Sensex', get_price('^BSESN'))
+    with i3:
+        st.metric('Bank Nifty', get_price('^NSEBANK'))
+    st.divider()
+    st.markdown('<h4 style="text-align:center; color:gray;">Data Source: Yahoo Finance | Prices may be delayed by 15 minutes</h4>', unsafe_allow_html=True)
+    st.divider()
+    st.subheader('TradingView Charts')
+    chart_col1, chart_col2, chart_col3 = st.columns(3)
+    with chart_col1:
+        common_symbols = {
+            'Custom (type below)': '',
+            '--- Commodities ---': '',
+            'Gold': 'TVC:GOLD',
+            'Silver': 'TVC:SILVER',
+            'Crude Oil': 'TVC:USOIL',
+            '--- Currencies ---': '',
+            'USD/INR': 'FX:USDINR',
+            'EUR/USD': 'FX:EURUSD',
+            'GBP/USD': 'FX:GBPUSD',
+            'USD/JPY': 'FX:USDJPY',
+            '--- Global Indices ---': '',
+            'S&P 500': 'FOREXCOM:SPXUSD',
+            'Nasdaq': 'FOREXCOM:NSXUSD',
+            'Dow Jones': 'FOREXCOM:DJI',
+            'FTSE 100': 'FOREXCOM:FTSUSD',
+            'DAX': 'INDEX:DAX',
+            'Nikkei': 'INDEX:NI225',
+            'Hang Seng': 'INDEX:HSI',
+            '--- US Stocks ---': '',
+            'Apple': 'NASDAQ:AAPL',
+            'Google': 'NASDAQ:GOOGL',
+            'Tesla': 'NASDAQ:TSLA',
+            'Microsoft': 'NASDAQ:MSFT',
+        }
+        selected_name = st.selectbox('Select Common Symbol', list(common_symbols.keys()), key='tv_dropdown')
+        custom_symbol = st.text_input('Or Type Custom TradingView Symbol', value='TVC:GOLD', key='tv_symbol', help='Examples: TVC:GOLD, BSE:SENSEX, NSE:RELIANCE')
+        if selected_name != 'Custom (type below)' and not selected_name.startswith('---'):
+            chart_symbol = common_symbols[selected_name]
+        else:
+            chart_symbol = custom_symbol
+    with chart_col2:
+        chart_interval = st.selectbox('Interval', ['1', '5', '15', '30', '60', 'D', 'W'], key='tv_interval')
+    with chart_col3:
+        chart_theme = st.selectbox('Theme', ['light', 'dark'], key='tv_theme')
+    tradingview_widget = f"""
+    <iframe src='https://s.tradingview.com/widgetembed/?frameElementId=tradingview&symbol={chart_symbol}&interval={chart_interval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme={chart_theme}&style=1&timezone=Asia%2FKolkata&withdateranges=1&showpopupbutton=1&studies_overrides={{}}&overrides={{}}&enabled_features=[]&disabled_features=[]&locale=en'
+    width='100%' height='500' frameborder='0' allowtransparency='true' scrolling='no'></iframe>
+    """
+    st.components.v1.html(tradingview_widget, height=520)
+
+def show_feedback():
+    st.markdown('<h2 style="text-align:center; color:#1f77b4;">Feedback</h2>', unsafe_allow_html=True)
+    st.markdown('<h5 style="text-align:center; color:gray;">Help us improve OptionsPulse!</h5>', unsafe_allow_html=True)
+    st.divider()
+    feedback_widget = '<iframe src="https://docs.google.com/forms/d/e/1FAIpQLScixODBP9qA2xUdy2JpVtyRp9T3tLOAoOodgwEOIyrlSfqyug/viewform?embedded=true" width="100%" height="1608" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>'
+    st.components.v1.html(feedback_widget, height=1628)
+
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(['Nifty', 'BankNifty', 'FinNifty', 'MidcapNifty', 'Trade Analyser', 'Global Markets', 'Feedback'])
 with tab1:
     show_dashboard('NIFTY')
 with tab2:
@@ -356,6 +532,10 @@ with tab4:
     show_dashboard('MIDCPNIFTY')
 with tab5:
     show_analyser()
+with tab6:
+    show_global_markets()
+with tab7:
+    show_feedback()
 
 st.divider()
-st.markdown('<h4 style="text-align:center; color:gray;">Data Source: NSE India | Built by Shashank Agarwal</h4>', unsafe_allow_html=True)
+st.markdown('<h4 style="text-align:center; color:gray;">© 2026 OptionsPulse | Built by Shashank Agarwal | Data: NSE India & Yahoo Finance | All Rights Reserved</h4>', unsafe_allow_html=True)
