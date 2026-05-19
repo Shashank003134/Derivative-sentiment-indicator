@@ -3,3 +3,4 @@ jugaad-data
 pandas
 plotly
 openpyxl
+yfinance
