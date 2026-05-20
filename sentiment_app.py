@@ -269,6 +269,24 @@ def show_analyser():
     st.markdown('<h2 style="text-align:center; color:#1f77b4;">Trade Analyser</h2>', unsafe_allow_html=True)
     st.markdown('<h5 style="text-align:center; color:gray;">Upload your trade data and get instant performance analytics</h5>', unsafe_allow_html=True)
     st.divider()
+    st.markdown('<h4>Before You Start — Read This!</h4>', unsafe_allow_html=True)
+    st.info('TO USE TRADE ANALYSER — YOUR FILE MUST HAVE THESE 4 COLUMNS:\n\n'
+            '1. DATE — date of each trade (any date format)\n'
+            '2. P&L / NET VALUE — profit or loss per trade (use negative for loss e.g. -5000)\n'
+            '3. INDEX / SYMBOL — which index or stock was traded (e.g. NIFTY, BANKNIFTY)\n'
+            '4. STRATEGY / TRADE TYPE — strategy used (e.g. Straddle, Strangle, Iron Condor)\n\n'
+            'COLUMN NAMES ACCEPTED:\n'
+            'Date → date, Date, DATE, Trade Date\n'
+            'P&L → pnl, PnL, profit, Profit, net value, Net Value, Profit/Loss\n'
+            'Index → index, Index, symbol, Symbol, scrip, Scrip\n'
+            'Strategy → strategy, Strategy, trade type, Trade Type, type\n\n'
+            'IF YOUR FILE HAS ANY OF THESE COLUMN NAMES → DIRECTLY UPLOAD! Auto detection will work!\n'
+            'IF YOUR FILE HAS DIFFERENT COLUMN NAMES → Manual mapping option will appear after upload.')
+    st.divider()
+    with open('OptionsPulse_Template.xlsx', 'rb') as f:
+        st.download_button(label='Download Excel Template', data=f, file_name='OptionsPulse_Template.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    st.caption('Download our template, fill your trade data and upload back for best experience!')
+    st.divider()
     uploaded_file = st.file_uploader('Upload your Trade Excel File', type=['xlsx', 'xls', 'csv'])
     if uploaded_file is not None:
         if uploaded_file.name.endswith('.csv'):
@@ -279,17 +297,32 @@ def show_analyser():
             df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
         st.success('File uploaded! ' + str(len(df)) + ' rows found.')
         st.divider()
-        st.subheader('Step 1 - Map Your Columns')
-        all_cols = ['-- Select --'] + list(df.columns)
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            date_col = st.selectbox('Date Column', all_cols)
-        with c2:
-            pnl_col = st.selectbox('P&L / Net Value Column', all_cols)
-        with c3:
-            index_col = st.selectbox('Index / Symbol Column', all_cols)
-        with c4:
-            strategy_col = st.selectbox('Strategy / Trade Type Column', all_cols)
+        auto_date = next((c for c in df.columns if c.lower() in ['date', 'trade date', 'tradedate']), None)
+        auto_pnl = next((c for c in df.columns if c.lower() in ['pnl', 'p&l', 'net value', 'netvalue', 'profit', 'net pnl', 'profit/loss']), None)
+        auto_index = next((c for c in df.columns if c.lower() in ['index', 'symbol', 'scrip', 'stock', 'instrument']), None)
+        auto_strategy = next((c for c in df.columns if c.lower() in ['strategy', 'trade type', 'tradetype', 'type']), None)
+        if all([auto_date, auto_pnl, auto_index, auto_strategy]):
+            st.success('Columns auto detected successfully!')
+            date_col = auto_date
+            pnl_col = auto_pnl
+            index_col = auto_index
+            strategy_col = auto_strategy
+            st.write('Date Column: ' + date_col)
+            st.write('P&L Column: ' + pnl_col)
+            st.write('Index Column: ' + index_col)
+            st.write('Strategy Column: ' + strategy_col)
+        else:
+            st.warning('Could not auto detect all columns. Please map them manually below.')
+            all_cols = ['-- Select --'] + list(df.columns)
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                date_col = st.selectbox('Date Column', all_cols)
+            with c2:
+                pnl_col = st.selectbox('P&L / Net Value Column', all_cols)
+            with c3:
+                index_col = st.selectbox('Index / Symbol Column', all_cols)
+            with c4:
+                strategy_col = st.selectbox('Strategy / Trade Type Column', all_cols)
         st.divider()
         chart_type = st.selectbox('Select Chart Type', ['Bar Chart', 'Line Chart', 'Area Chart', 'Pie Chart'], key='chart_selector')
         st.divider()
@@ -442,7 +475,7 @@ def show_global_markets():
     with c3:
         st.metric('Crude Oil (USD/bbl)', get_price('CL=F'))
     with c4:
-        st.metric('Natural Gas', get_price('NG=F'))
+        st.metric('Natural Gas ($/MMBtu)', get_price('NG=F'))
     st.divider()
     st.subheader('Currencies')
     cur1, cur2, cur3, cur4, cur5, cur6 = st.columns(6)
