@@ -10,6 +10,18 @@ from datetime import datetime
 
 st.set_page_config(page_title='OptionsPulse', page_icon='📊', layout='wide')
 st.markdown('<h1 style="text-align:center; color:#1f77b4;">OptionsPulse</h1>', unsafe_allow_html=True)
+
+# Google Analytics
+st.markdown("""
+    <!-- Google tag (gtag.js) -->
+    <script async src='https://www.googletagmanager.com/gtag/js?id=G-F4H6PFF7Y9'></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-F4H6PFF7Y9');
+    </script>
+""", unsafe_allow_html=True)
 st.markdown('<h4 style="text-align:center; color:#444444;"><i>Decode the Market. Dominate the Trade.</i></h4>', unsafe_allow_html=True)
 st.markdown('<h5 style="text-align:center; color:gray;">Live F&O Data Analysis - PCR | Max Pain | OI | Global Markets | Trade Analyser</h5>', unsafe_allow_html=True)
 
